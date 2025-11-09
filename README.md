@@ -1,4 +1,4 @@
-# IDEK - practice OpenCV w useless program
+# practice OpenCV w cool but useless program
 
 ## Features
 

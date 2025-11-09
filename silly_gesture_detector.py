@@ -1,15 +1,10 @@
-"""
-Silly Gesture Detector 🤪
-Detects hand gestures and tongue sticking out for maximum fun!
-"""
 
 import cv2
 import mediapipe as mp
 import numpy as np
 from collections import deque
-import time
 
-class SillyGestureDetector:
+class GestureDetector:
     def __init__(self):
         # Initialize MediaPipe components
         self.mp_face_mesh = mp.solutions.face_mesh
@@ -43,20 +38,6 @@ class SillyGestureDetector:
         
         # Gesture state tracking
         self.tongue_out_history = deque(maxlen=5)
-        self.gesture_history = deque(maxlen=5)
-        self.last_silly_time = 0
-        self.silly_messages = [
-            "👅 TONGUE DETECTED! So silly!",
-            "🤘 ROCK ON! You rebel!",
-            "✌️ PEACE OUT! Groovy baby!",
-            "👍 THUMBS UP! Looking good!",
-            "✊ FIST BUMP! Power move!",
-            "👋 WAVE HELLO! Hey there!",
-            "🖖 LIVE LONG AND PROSPER!",
-            "🤙 HANG LOOSE! Radical dude!"
-        ]
-        self.current_message = ""
-        self.message_time = 0
         self.combo_count = 0
     
     @staticmethod
@@ -109,7 +90,7 @@ class SillyGestureDetector:
     def detect_hand_gesture(self, hand_landmarks, hand_label="Right"):
         """Detect various hand gestures"""
         wrist = self._landmark_to_np(hand_landmarks.landmark[0])
-        
+
         def joint_angle(a, b, c):
             """Return the angle at point b (degrees) for the triangle a-b-c"""
             ba = a - b
@@ -118,23 +99,23 @@ class SillyGestureDetector:
                 return 0.0
             cos_angle = np.dot(ba, bc) / ((np.linalg.norm(ba) * np.linalg.norm(bc)) + 1e-6)
             return np.degrees(np.arccos(np.clip(cos_angle, -1.0, 1.0)))
-        
+
         def is_finger_extended(tip_id, pip_id, mcp_id):
             tip = self._landmark_to_np(hand_landmarks.landmark[tip_id])
             pip = self._landmark_to_np(hand_landmarks.landmark[pip_id])
             mcp = self._landmark_to_np(hand_landmarks.landmark[mcp_id])
-            
+
             angle = joint_angle(tip, pip, mcp)
             pointing_up = tip[1] < pip[1] - 0.01
             distance_check = np.linalg.norm(tip[:2] - wrist[:2]) > np.linalg.norm(mcp[:2] - wrist[:2]) + 0.01
             return angle > 150 and (pointing_up or distance_check)
-        
+
         # Thumb needs special handling based on handedness
         thumb_tip = self._landmark_to_np(hand_landmarks.landmark[4])
         thumb_ip = self._landmark_to_np(hand_landmarks.landmark[3])
         thumb_mcp = self._landmark_to_np(hand_landmarks.landmark[2])
         thumb_cmc = self._landmark_to_np(hand_landmarks.landmark[1])
-        
+
         thumb_angle = joint_angle(thumb_tip, thumb_ip, thumb_mcp)
         if hand_label == "Right":
             thumb_axis_test = thumb_tip[0] < thumb_ip[0] - 0.015
@@ -142,7 +123,7 @@ class SillyGestureDetector:
             thumb_axis_test = thumb_tip[0] > thumb_ip[0] + 0.015
         thumb_distance_test = np.linalg.norm(thumb_tip[:2] - wrist[:2]) > np.linalg.norm(thumb_cmc[:2] - wrist[:2]) + 0.015
         thumb_extended = thumb_angle > 150 and (thumb_axis_test or thumb_distance_test)
-        
+
         # Count extended fingers
         fingers_up = [
             thumb_extended,
@@ -151,50 +132,47 @@ class SillyGestureDetector:
             is_finger_extended(16, 14, 13), # Ring
             is_finger_extended(20, 18, 17)  # Pinky
         ]
-        
+
         num_fingers = sum(fingers_up)
-        
+
         thumb, index, middle, ring, pinky = fingers_up
         non_thumb_count = index + middle + ring + pinky
-        
+
         # Detect specific gestures (prioritize more specific shapes first)
         if non_thumb_count == 0 and not thumb:
-            return "FIST", "✊"
+            return "FIST"
         if index and not middle and not ring and pinky:
-            return "ROCK_ON", "🤘"
+            return "ROCK ON"
         if index and middle and not ring and not pinky:
-            return "PEACE", "✌️"
+            return "PEACE"
         if not index and not middle and not ring and pinky and thumb:
-            return "HANG_LOOSE", "🤙"
+            return "HANG LOOSE"
         if index and not middle and not ring and not pinky:
-            return "POINTING", "☝️"
+            return "POINTING"
         if thumb and not index and not middle and not ring and not pinky:
-            return "THUMBS_UP", "👍"
+            return "THUMBS UP"
         if num_fingers == 5:
-            return "OPEN_HAND", "🖐️"
+            return "OPEN HAND"
         if non_thumb_count == 4:
-            return "FOUR", "4️⃣"
+            return "FOUR"
         if non_thumb_count == 3:
-            return "THREE", "3️⃣"
+            return "THREE"
         if non_thumb_count == 2:
-            return "TWO", "2️⃣"
-        
-        return "UNKNOWN", "❓"
+            return "TWO"
+
+        return None
     
-    def draw_silly_effects(self, frame, gesture_name, emoji, position):
-        """Draw fun effects on the frame"""
+    def draw_gesture_text(self, frame, gesture_name, position):
+        """Draw gesture detection text on the frame"""
         x, y = position
-        
-        # Create a fun message
-        message = f"{emoji} {gesture_name}"
-        
-        # Draw with style
-        cv2.putText(frame, message, (x, y),
-                   cv2.FONT_HERSHEY_DUPLEX, 1.5,
-                   (255, 255, 0), 3, cv2.LINE_AA)
-        cv2.putText(frame, message, (x, y),
-                   cv2.FONT_HERSHEY_DUPLEX, 1.5,
-                   (147, 20, 255), 2, cv2.LINE_AA)
+
+        # Draw with clean style
+        cv2.putText(frame, gesture_name, (x, y),
+                   cv2.FONT_HERSHEY_DUPLEX, 1.2,
+                   (255, 255, 255), 3, cv2.LINE_AA)
+        cv2.putText(frame, gesture_name, (x, y),
+                   cv2.FONT_HERSHEY_DUPLEX, 1.2,
+                   (0, 255, 0), 2, cv2.LINE_AA)
     
     def process_frame(self, frame):
         """Process a single frame and detect gestures"""
@@ -223,11 +201,11 @@ class SillyGestureDetector:
         # Check for tongue
         if face_results and face_results.multi_face_landmarks:
             for face_landmarks in face_results.multi_face_landmarks:
-                is_tongue, mouth_opening = self.detect_tongue(face_landmarks, frame.shape)
+                is_tongue, _ = self.detect_tongue(face_landmarks, frame.shape)
                 
                 if is_tongue:
-                    detected_gestures.append(("TONGUE", "👅"))
-                    # Draw mouth landmarks for fun
+                    detected_gestures.append("TONGUE")
+                    # Draw mouth landmarks
                     self.mp_drawing.draw_landmarks(
                         frame,
                         face_landmarks,
@@ -253,15 +231,17 @@ class SillyGestureDetector:
                 )
                 
                 # Detect gesture
-                gesture_name, emoji = self.detect_hand_gesture(hand_landmarks, hand_label)
-                detected_gestures.append((gesture_name, emoji))
-                
-                # Get hand position for text
-                wrist = hand_landmarks.landmark[0]
-                x, y = int(wrist.x * w), int(wrist.y * h - 50)
-                
-                # Draw gesture name
-                self.draw_silly_effects(frame, gesture_name, emoji, (max(10, x-100), max(50, y)))
+                gesture_name = self.detect_hand_gesture(hand_landmarks, hand_label)
+
+                if gesture_name:
+                    detected_gestures.append(gesture_name)
+
+                    # Get hand position for text
+                    wrist = hand_landmarks.landmark[0]
+                    x, y = int(wrist.x * w), int(wrist.y * h - 50)
+
+                    # Draw gesture name
+                    self.draw_gesture_text(frame, gesture_name, (max(10, x-100), max(50, y)))
         
         # Display combo counter
         if len(detected_gestures) > 1:
@@ -280,7 +260,7 @@ class SillyGestureDetector:
         
         # Display all detected gestures at top
         if detected_gestures:
-            gesture_text = " + ".join([f"{emoji} {name}" for name, emoji in detected_gestures])
+            gesture_text = " + ".join(detected_gestures)
             cv2.rectangle(frame, (0, 0), (w, 100), (0, 0, 0), -1)
             cv2.putText(frame, gesture_text, (10, 70),
                        cv2.FONT_HERSHEY_DUPLEX, 1.0,
@@ -294,10 +274,8 @@ class SillyGestureDetector:
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
         
-        print("Silly Gesture Detector Started!")
-        print("Show hand gestures!")
-        print("Stick out your tongue!")
-        print("Try combining them for combos")
+        print("Gesture Detector Started!")
+        print("Show hand gestures and stick out your tongue")
         print("Press 'q' to quit")
         
         while cap.isOpened():
@@ -310,7 +288,7 @@ class SillyGestureDetector:
             frame = self.process_frame(frame)
             
             # Display
-            cv2.imshow('Silly Gesture Detector', frame)
+            cv2.imshow('Gesture Detector', frame)
             
             # Check for quit
             if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -318,9 +296,9 @@ class SillyGestureDetector:
         
         cap.release()
         cv2.destroyAllWindows()
-        print("👋 Thanks for being silly! Goodbye!")
+        print("Goodbye!")
 
 
 if __name__ == "__main__":
-    detector = SillyGestureDetector()
+    detector = GestureDetector()
     detector.run()
